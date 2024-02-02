@@ -11,7 +11,7 @@ from datasets import PascalVOCDataset
 from foviou import *
 from model import (SimpleObjectDetector, SimpleObjectDetectorMobile,
                    SimpleObjectDetectorResnet)
-from plot_tools import process_and_save_image, process_and_save_image2, process_and_save_image_planar
+from plot_tools import process_and_save_image
 from sphiou import Sph
 from losses import *
 from utils import *
@@ -57,8 +57,8 @@ def train_one_epoch_mse(epoch, train_loader, model, optimizer, device, new_w, ne
 
     model.train()
     total_loss = 0.0
-    ploted = False
 
+    #loop over dataset; each iteration "is" a batch
     for i, (images, boxes_list, labels_list) in enumerate(train_loader):
         images = images.to(device)
         optimizer.zero_grad()
@@ -66,61 +66,32 @@ def train_one_epoch_mse(epoch, train_loader, model, optimizer, device, new_w, ne
 
         batch_loss = torch.tensor(0.0, device=device)        
 
+        #loop over one batch; each iteration "is" an image
         for boxes, labels, det_preds, conf_preds, class_preds, image in process_batches(boxes_list, labels_list, detection_preds, confidence_preds, classification_preds, device, new_w, new_h, epoch, i, images):
-            mse_loss, matches = custom_loss_function(det_preds, conf_preds, boxes, labels, class_preds, new_w, new_h)
-            batch_loss += mse_loss
-            
-            if ploted == False:
-                process_and_save_image2(image,
-                                       matches, 
-                       gt_boxes=boxes.cpu(),
-                       confidences = conf_preds.cpu(), 
-                       det_preds=det_preds.cpu().detach(), 
-                       threshold=0.5, 
-                       color_gt=(0, 255, 0), 
-                       save_path=f'/home/mstveras/images5/gt_pred_{epoch}.jpg')
-                ploted = True
+            loss, matches = custom_loss_function(det_preds, conf_preds, boxes, labels, class_preds, new_w, new_h)
+            batch_loss += loss
 
         batch_loss.backward()
         optimizer.step()
         #scheduler.step()
         total_loss += batch_loss.item()
 
+    #melhorar organizacao disso (so precisa plotar uma vex)
+    process_and_save_image(image,
+                               matches, 
+                       gt_boxes=boxes.cpu(),
+                       confidences = conf_preds.cpu(), 
+                       det_preds=det_preds.cpu().detach(), 
+                       threshold=0.5, 
+                       color_gt=(0, 255, 0), 
+                       save_path=f'/home/mstveras/images5/gt_pred_{epoch}.jpg')
+
     avg_train_loss = total_loss / len(train_loader)
     print(f"Epoch {epoch}: Train Loss: {avg_train_loss}")
-
-
-
-def validate_one_epoch_mse(epoch, val_loader, model, device, new_w, new_h):
-    model.eval()
-    total_val_loss = 0.0
-
-    with torch.no_grad():
-        for i, (images, boxes_list, labels_list, confidences_list) in enumerate(val_loader):
-            images = images.to(device)
-            detection_preds = model(images)
-
-            batch_val_loss = torch.tensor(0.0, device=device)
-
-            for boxes, labels, det_preds in process_batches(boxes_list, labels_list, detection_preds, device, new_w, new_h, epoch, i, images):
-                mse_loss = custom_loss_function(det_preds, boxes, new_w, new_h)
-                batch_val_loss += mse_loss
-
-            total_val_loss += batch_val_loss.item()
-
-    avg_val_loss = total_val_loss / len(val_loader)
-
-    # Update best validation loss and save model if necessary
-    if avg_val_loss < best_val_loss:
-        best_val_loss = avg_val_loss
-        save_best_model(epoch, model)
-
-    print(f"Epoch {epoch}: Validation Loss: {avg_val_loss}")
 
 if __name__ == "__main__":
 
     torch.cuda.empty_cache()
-
     # Set device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -129,7 +100,7 @@ if __name__ == "__main__":
     learning_rate = 0.0001
     batch_size = 10
     num_classes = 38
-    max_images = 300
+    max_images = 30
     num_boxes = 10
     best_val_loss = float('inf')
     new_w, new_h = 600, 300

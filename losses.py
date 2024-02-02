@@ -81,8 +81,8 @@ def custom_loss_function(det_preds, conf_preds, boxes, labels, class_preds, new_
       unmatched detections.
     """
     
-    iou_threshold = 0.2  # IoU threshold
-    confidence_threshold = 0.2  # Confidence threshold for applying regression loss
+    iou_threshold = 0.4  # IoU threshold
+    confidence_threshold = 0.4  # Confidence threshold for applying regression loss
     matches, _ = hungarian_matching(boxes, det_preds, new_w, new_h)
 
     total_loss = 0.0
