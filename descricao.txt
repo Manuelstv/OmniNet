@@ -1,0 +1,35 @@
+train.py -> Script principal, para rodar o treino.
+
+datasets.py -> Definio do dataloader.
+
+foviou.py -> minha implementao do foviou
+
+json2xml.py -> refatorar arquivos json com anotaões para xml no formato esperado.
+
+model.py -> Definio dos modelos.
+
+pixel2sphere.py -> nao ta sendo usado que eu lembre, normaliza coordenadas absolutas para angulos na esfera.
+
+plot_bfov_resized.py -> nao ta sendo usado que eu lembre, plotar bfov em imagens resized
+
+plot_lucas.py -> nao ta sendo usado, script do lucas para plotar as bfovs
+
+plot_tools.py -> usado para salvar em imagens com suas respectivas bfovs em disco 
+
+sph2pob.py -> implementaçes do paper sph2pob
+
+sphiou.py -> primeira implementao do sphiou de um repositorio antigo qu tinhamos encontrado
+
+sphiou.py -> (tentaiva de) adaptação do último para o pytorch
+
+utils.py -> Basicamente só é utilizada a funcao tranform, que basicamente so está fazendo o resize da imagem neste momento.
+
+debug.ipynb -> nada relevante, tentei debugar o código pelo jupyter...
+
+
+
+
+
+
+
+
