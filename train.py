@@ -36,63 +36,63 @@ def init_weights(m):
         if m.bias is not None:
             nn.init.constant_(m.bias, 0)
 
+SAVE_IMAGE_EPOCH = 20
+NUM_BATCHES_TO_SAVE = 1
+
+def save_images(epoch, j, batch_index, image, boxes, conf_preds, det_preds, save_dir, matches):
+    save_path = os.path.join(save_dir, f'gt_pred_{batch_index}_{j}.jpg')
+    process_and_save_image(
+        image, matches, gt_boxes=boxes.cpu(),
+        confidences=conf_preds.cpu(),
+        det_preds=det_preds.cpu().detach(),
+        threshold=0.5,
+        color_gt=(0, 255, 0),
+        save_path=save_path
+    )
+
+def process_batch(batch, device, new_w, new_h, epoch, batch_index, images, selected_batches, save_dir):
+    batch_loss = torch.tensor(0.0, device=device)
+    
+    for j, (boxes, labels, det_preds, conf_preds, class_preds, image) in enumerate(batch):
+        loss, matches = custom_loss_function(det_preds, conf_preds, boxes, labels, class_preds, new_w, new_h)
+        batch_loss += loss
+
+        if epoch % SAVE_IMAGE_EPOCH == 0 and batch_index in selected_batches:
+            save_images(epoch, j, batch_index, image, boxes, conf_preds, det_preds, save_dir, matches)
+
+    return batch_loss
+
 def train_one_epoch(epoch, train_loader, model, optimizer, device, new_w, new_h, num_classes):
-    """
-    Train the model for one epoch using Mean Squared Error (MSE) as the loss function.
-
-    This function iterates over the training data loader, performs forward and backward
-    passes, and updates the model parameters. Additionally, it saves images for visualization
-    and calculates the average training loss for the epoch.
-
-    Parameters:
-    - epoch (int): The current epoch number.
-    - train_loader (DataLoader): The DataLoader object providing the training data.
-    - model (nn.Module): The neural network model being trained.
-    - optimizer (Optimizer): The optimizer used for updating model parameters.
-    - device (torch.device): The device (CPU/GPU) on which the computations are performed.
-    - new_w (int): The new width dimension for the image after processing.
-    - new_h (int): The new height dimension for the image after processing.
-
-    Returns:
-    - None
-    """
-
     model.train()
     total_loss = 0.0
+    save_dir = f'images/epoch_{epoch}'
 
-    #loop over dataset; each iteration "is" a batch
+    if epoch % SAVE_IMAGE_EPOCH == 0:
+        print("Creating dir with predicted images.")
+        os.makedirs(save_dir, exist_ok=True)
+        #selected_batches = random.sample(range(0, 10), NUM_IMAGES_TO_SAVE)
+        selected_batches = [0]
+    else:
+        selected_batches = []
+
     for i, (images, boxes_list, labels_list) in enumerate(train_loader):
         images = images.to(device)
         optimizer.zero_grad()
         detection_preds, confidence_preds, classification_preds = model(images)
 
-        batch_loss = torch.tensor(0.0, device=device)        
+        processed_batches = process_batches(
+            boxes_list, labels_list, detection_preds, confidence_preds, classification_preds, device, new_w, new_h, epoch, i, images
+        )
 
-        #loop over one batch; each iteration "is" an image
-        for boxes, labels, det_preds, conf_preds, class_preds, image in process_batches(boxes_list, labels_list, detection_preds, confidence_preds, classification_preds, device, new_w, new_h, epoch, i, images):
-            loss, matches = custom_loss_function(det_preds, conf_preds, boxes, labels, class_preds, new_w, new_h)
-            print(class_preds)
-            print(labels)
-            batch_loss += loss
-
+        batch_loss = process_batch(processed_batches, device, new_w, new_h, epoch, i, images, selected_batches, save_dir)
         batch_loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
-        #scheduler.step()
         total_loss += batch_loss.item()
-
-    #melhorar organizacao disso (so precisa plotar uma vex)
-    process_and_save_image(image,
-                               matches, 
-                       gt_boxes=boxes.cpu(),
-                       confidences = conf_preds.cpu(), 
-                       det_preds=det_preds.cpu().detach(), 
-                       threshold=0.5, 
-                       color_gt=(0, 255, 0), 
-                       save_path=f'/home/mstveras/images5/gt_pred_{epoch}.jpg')
 
     avg_train_loss = total_loss / len(train_loader)
     print(f"Epoch {epoch}: Train Loss: {avg_train_loss}")
+
 
 if __name__ == "__main__":
 
@@ -121,7 +121,7 @@ if __name__ == "__main__":
     model = SimpleObjectDetector(num_boxes=num_boxes, num_classes=num_classes).to(device)
     model.det_head.apply(init_weights)
 
-    pretrained_weights = torch.load('weights_501.pth', map_location=device)
+    pretrained_weights = torch.load('weights/weights_501.pth', map_location=device)
     # Update model's state_dict
     model.load_state_dict(pretrained_weights, strict=False)
 
