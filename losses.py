@@ -124,4 +124,6 @@ def custom_loss_function(det_preds, conf_preds, boxes, labels, class_preds, new_
 
     total_loss = (total_confidence_loss + total_localization_loss + 0.1*total_classification_loss + unmatched_penalty * unmatched_loss) / (len(matches) + len(unmatched_dets)) if matches else unmatched_penalty * unmatched_loss * 5
 
+    #print(total_confidence_loss.item(), total_localization_loss.item(), 0.1*total_classification_loss.item(), (unmatched_penalty * unmatched_loss))
+
     return total_loss, matches

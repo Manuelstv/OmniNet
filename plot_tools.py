@@ -42,7 +42,7 @@ def plot_bfov(image, v00, u00, a_lat, a_long, color, h, w):
     v = h - (-theta / np.pi + 1. / 2.) * h
     return Plotting.plotEquirectangular(image, np.vstack((u, v)).T, color)
 
-def process_and_save_image2(images, matches, gt_boxes, confidences, det_preds, threshold, color_gt, save_path):
+def process_and_save_image(images, matches, gt_boxes, confidences, det_preds, threshold, color_gt, save_path):
     """
     Process an image, plot ground truth and predictions (above a confidence threshold), and save the image.
     
@@ -89,75 +89,4 @@ def process_and_save_image2(images, matches, gt_boxes, confidences, det_preds, t
         cv2.putText(images, label, label_position, cv2.FONT_HERSHEY_SIMPLEX, 0.5, color_pred, 2)
 
     # Save the image with plotted boxes
-    cv2.imwrite(save_path, images)
-
-
-def process_and_save_image(images, matches, gt_boxes, det_preds, threshold, color_gt, color_pred, save_path):
-    """
-    Process an image, plot ground truth and predictions (above a confidence threshold), and save the image.
-    
-    Args:
-    - images: The image as a tensor.
-    - gt_boxes: Ground truth bounding boxes.
-    - det_preds: Detection predictions including bounding boxes and confidence scores.
-    - threshold: Confidence threshold to decide which predictions to plot.
-    - color_gt: Color for the ground truth boxes.
-    - color_pred: Color for the predicted boxes.
-    - save_path: Path to save the processed image.
-    """
-    
-    # Process the image for visualization
-    images = images.mul(255).clamp(0, 255).permute(1, 2, 0).cpu().numpy().astype(np.uint8).copy()
-
-    # Plot ground truth boxes
-    for box in gt_boxes:
-        u00, v00, a_lat1, a_long1 = (box[0]+1)*(600/2), (box[1]+1)*(300/2), 90*box[2], 90*box[3]
-        a_long = np.radians(a_long1)
-        a_lat = np.radians(a_lat1)
-        images = plot_bfov(images, v00, u00, a_long, a_lat, color_gt, 300, 600)
-
-    # Plot predictions if their confidence is greater than the threshold
-    for pred in det_preds:
-        #conf = torch.sigmoid(pred[4])
-        #if conf > threshold:
-        #    print(conf)
-            box = pred[:4]
-            u00, v00, a_lat1, a_long1 = (box[0]+1)*(600/2), (box[1]+1)*(300/2), 90*box[2], 90*box[3]
-            a_long = np.radians(a_long1)
-            a_lat = np.radians(a_lat1)
-            images = plot_bfov(images, v00, u00, a_long, a_lat, color_pred, 300, 600)
-
-    # Save the image with plotted boxes
-    cv2.imwrite(save_path, images)
-
-
-def process_and_save_image_planar(images, boxes, color, save_path):
-    """
-    Process an image from a list, draw bounding boxes on it, and save the image.
-
-    Args:
-    - images (list of np.array): A list of images, each as a NumPy array.
-    - boxes (list of tuples): A list of bounding boxes, each box defined as a tuple (x_min, y_min, x_max, y_max).
-    - color (tuple): Color of the bounding box in BGR (Blue, Green, Red) format.
-    - save_path (str): The file path where the processed image will be saved.
-    """
-    # Check if images list is not empty
-    #if not images:
-    #    raise ValueError("The images list is empty.")
-
-    # Process each image
-
-    new_w, new_h = 600, 300
-
-    #print(type(images))
-
-    #images = np.ascontiguousarray(images, dtype = np.uint8)
-    #images2 = images.copy()
-
-    for box in boxes:
-        x_min, y_min, x_max, y_max = int(box[0]*new_w), int(box[1]*new_h), int(box[2]*new_w), int(box[3]*new_h)
-        #images = np.ascontiguousarray(images, dtype = np.uint8)
-        cv2.rectangle(images, (x_min, y_min), (x_max, y_max), color, 2)
-
-    # Save the processed image
     cv2.imwrite(save_path, images)
