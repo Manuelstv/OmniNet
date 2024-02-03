@@ -26,8 +26,8 @@ class PascalVOCDataset(Dataset):
             self.image_dir = os.path.join(base_dir, 'train/images')
             self.annotation_dir = os.path.join(base_dir, 'train/labels')
         elif self.split == 'VAL':
-            self.image_dir = os.path.join(base_dir, 'val')
-            self.annotation_dir = os.path.join(base_dir, 'val')
+            self.image_dir = os.path.join(base_dir, 'val/images')
+            self.annotation_dir = os.path.join(base_dir, 'val/labels')
         elif self.split == 'TEST':
             self.image_dir = os.path.join(base_dir, 'test')
             self.annotation_dir = os.path.join(base_dir, 'test')

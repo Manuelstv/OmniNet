@@ -50,7 +50,7 @@ def save_images(epoch, j, batch_index, image, boxes, conf_preds, det_preds, save
         save_path=save_path
     )
 
-def process_batch(batch, device, new_w, new_h, epoch, batch_index, images, selected_batches, save_dir):
+def compute_batch_loss(batch, device, new_w, new_h, epoch, batch_index, images, selected_batches, save_dir):
     batch_loss = torch.tensor(0.0, device=device)
     
     for j, (boxes, labels, det_preds, conf_preds, class_preds, image) in enumerate(batch):
@@ -84,7 +84,7 @@ def train_one_epoch(epoch, train_loader, model, optimizer, device, new_w, new_h,
             boxes_list, labels_list, detection_preds, confidence_preds, classification_preds, device, new_w, new_h, epoch, i, images
         )
 
-        batch_loss = process_batch(processed_batches, device, new_w, new_h, epoch, i, images, selected_batches, save_dir)
+        batch_loss = compute_batch_loss(processed_batches, device, new_w, new_h, epoch, i, images, selected_batches, save_dir)
         batch_loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
@@ -92,6 +92,35 @@ def train_one_epoch(epoch, train_loader, model, optimizer, device, new_w, new_h,
 
     avg_train_loss = total_loss / len(train_loader)
     print(f"Epoch {epoch}: Train Loss: {avg_train_loss}")
+
+def validate_one_epoch(epoch, val_loader, model, device, new_w, new_h, num_classes):
+    model.eval()
+    total_loss = 0.0
+    save_dir = f'images/val_epoch_{epoch}'
+
+    if epoch % SAVE_IMAGE_EPOCH == 0:
+        print("Creating dir with validation images.")
+        os.makedirs(save_dir, exist_ok=True)
+        selected_batches = [0]  # Modify as needed for validation
+    else:
+        selected_batches = []
+
+    with torch.no_grad():
+        for i, (images, boxes_list, labels_list) in enumerate(val_loader):
+            images = images.to(device)
+            detection_preds, confidence_preds, classification_preds = model(images)
+
+            processed_batches = process_batches(
+                boxes_list, labels_list, detection_preds, confidence_preds, classification_preds, device, new_w, new_h, epoch, i, images
+            )
+
+            batch_loss = compute_batch_loss(
+                processed_batches, device, new_w, new_h, epoch, i, images, selected_batches, save_dir
+            )
+            total_loss += batch_loss.item()
+
+    avg_val_loss = total_loss / len(val_loader)
+    print(f"Epoch {epoch}: Validation Loss: {avg_val_loss}")
 
 
 if __name__ == "__main__":
@@ -115,8 +144,8 @@ if __name__ == "__main__":
     train_dataset = PascalVOCDataset(split='TRAIN', keep_difficult=False, max_images=max_images, new_w = new_w, new_h = new_h)
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=train_dataset.collate_fn)
 
-    #val_dataset = PascalVOCDataset(split='VAL', keep_difficult=False, max_images=max_images, new_w = new_w, new_h = new_h)
-    #val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True, collate_fn=train_dataset.collate_fn)
+    val_dataset = PascalVOCDataset(split='VAL', keep_difficult=False, max_images=max_images, new_w = new_w, new_h = new_h)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True, collate_fn=train_dataset.collate_fn)
 
     model = SimpleObjectDetector(num_boxes=num_boxes, num_classes=num_classes).to(device)
     model.det_head.apply(init_weights)
@@ -130,7 +159,7 @@ if __name__ == "__main__":
 
     for epoch in range(num_epochs):
         train_one_epoch(epoch, train_loader, model, optimizer, device, new_w, new_h, num_classes)
-        #validate_one_epoch_mse(epoch, val_loader, model, device, new_w, new_h)
+        validate_one_epoch(epoch, val_loader, model, device, new_w, new_h, num_classes)
         if epoch%20==0:
             torch.save(model.state_dict(), f'weights_max_{521+epoch}.pth')
 
