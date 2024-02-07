@@ -19,15 +19,15 @@ class PascalVOCDataset(Dataset):
         self.new_w = new_w
 
         # Base directory for datasets
-        base_dir = '/home/mstveras/ssd-360/dataset'
+        base_dir = '/home/mstveras/OmniNet/dataset'
 
         # Assign directory based on split
         if self.split == 'TRAIN':
-            self.image_dir = os.path.join(base_dir, 'train/images')
-            self.annotation_dir = os.path.join(base_dir, 'train/labels')
+            self.image_dir = os.path.join(base_dir, 'train/images2')
+            self.annotation_dir = os.path.join(base_dir, 'train/labels2')
         elif self.split == 'VAL':
-            self.image_dir = os.path.join(base_dir, 'val/images')
-            self.annotation_dir = os.path.join(base_dir, 'val/labels')
+            self.image_dir = os.path.join(base_dir, 'val/images2')
+            self.annotation_dir = os.path.join(base_dir, 'val/labels2')
         elif self.split == 'TEST':
             self.image_dir = os.path.join(base_dir, 'test')
             self.annotation_dir = os.path.join(base_dir, 'test')
@@ -40,9 +40,9 @@ class PascalVOCDataset(Dataset):
         assert len(self.image_filenames) == len(self.annotation_filenames)
 
         for img_filename, ann_filename in zip(self.image_filenames, self.annotation_filenames):
-            img_basename = os.path.splitext(img_filename)[0][-7:-3]
-            ann_basename = os.path.splitext(ann_filename)[0][-7:-3]
-            assert img_basename == ann_basename, f"File name mismatch: {img_filename} and {ann_filename}"
+            img_basename = os.path.splitext(img_filename)[0][-4:]
+            ann_basename = os.path.splitext(ann_filename)[0][-4:]
+            assert img_basename == ann_basename, f"File name mismatch: {img_basename} and {ann_basename}"
 
         # If max_images is set, limit the dataset size
         if max_images is not None:

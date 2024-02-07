@@ -116,7 +116,7 @@ def plot_bfov(image, v00, u00, a_lat, a_long, color, h, w):
     u = [(angle / (2 * np.pi) + 0.5) * w for angle in phi]
     v = [h - (-angle / np.pi + 0.5) * h for angle in theta]
     kernel = np.array([u, v], dtype=np.int32).T
-    image = plot_circles(image, kernel, color, 0.5)
+    #image = plot_circles(image, kernel, color, 0.5)
 
     image = Plotting.plotEquirectangular(image, kernel, color)
     image = np.roll(image, w - t, axis=1)

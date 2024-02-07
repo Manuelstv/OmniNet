@@ -124,9 +124,9 @@ class SimpleObjectDetector(nn.Module):
         # Assuming the input image size is 1920x960
         # The size after conv and pool layers would still be [32, 120, 60]
         fc_1_features = 18432
-        fc_2_features = 9000
+        fc_2_features = 9216
 
-        #self.dropout1 = nn.Dropout(0.2)
+        #self.dropout1 = nn.Dropout(0.5)
         #self.dropout2 = nn.Dropout(0.2)
 
         # Fully connected layers
@@ -139,22 +139,23 @@ class SimpleObjectDetector(nn.Module):
     def forward(self, x):
         x = F.relu(self.conv1(x))
         x = F.relu(self.conv2(x))
-        x = (F.relu(self.conv3(x)))
-        x = (F.relu(self.conv4(x)))
+        x = self.pool(F.relu(self.conv3(x)))
+        x = self.pool(F.relu(self.conv4(x)))
         x = self.pool(F.relu(self.conv5(x)))
-        x = self.pool(F.relu(self.conv6(x)))
-        x = self.pool(F.relu(self.conv7(x)))
+        x = (F.relu(self.conv6(x)))
+        x = (F.relu(self.conv7(x)))
 
         # Flatten the features for the fully connected layer
-        #rint(x.size())
+        #print(x.size())
         x = x.view(x.size(0), -1)
         #print(x.size())
         x = F.relu(self.fc1(x))
+        #x = self.dropout1(x)
         x = F.relu(self.fc2(x))
 
         detection_output = self.det_head(x).view(-1, self.num_boxes, 4)
         # Reshape cls_head output: infer batch size (-1), set dimensions to [num_boxes, num_classes].
-        classification_output = torch.sigmoid(self.cls_head(x).view(-1, self.num_boxes, self.num_classes))
+        classification_output = (self.cls_head(x).view(-1, self.num_boxes, self.num_classes))
         confidence_output = torch.sigmoid(self.conf_head(x)).view(-1, self.num_boxes, 1)
 
         # Apply the required transformations to the detection_output

@@ -32,19 +32,21 @@ def init_weights(m):
     - If the layer has a bias term, it will be initialized to zero.
     """
     if isinstance(m, nn.Linear):
-        nn.init.uniform_(m.weight, -1, 1)
+        nn.init.uniform_(m.weight, -10, 10)
         if m.bias is not None:
             nn.init.constant_(m.bias, 0)
 
-SAVE_IMAGE_EPOCH = 20
+SAVE_IMAGE_EPOCH = 10
 NUM_BATCHES_TO_SAVE = 1
 
-def save_images(epoch, j, batch_index, image, boxes, conf_preds, det_preds, save_dir, matches):
+def save_images(epoch, j, batch_index, image, boxes, conf_preds, det_preds, class_preds, labels, save_dir, matches):
     save_path = os.path.join(save_dir, f'gt_pred_{batch_index}_{j}.jpg')
     process_and_save_image(
         image, matches, gt_boxes=boxes.cpu(),
         confidences=conf_preds.cpu(),
         det_preds=det_preds.cpu().detach(),
+        class_preds = class_preds,
+        labels = labels,
         threshold=0.5,
         color_gt=(0, 255, 0),
         save_path=save_path
@@ -58,7 +60,7 @@ def compute_batch_loss(batch, device, new_w, new_h, epoch, batch_index, images, 
         batch_loss += loss
 
         if epoch % SAVE_IMAGE_EPOCH == 0 and batch_index in selected_batches:
-            save_images(epoch, j, batch_index, image, boxes, conf_preds, det_preds, save_dir, matches)
+            save_images(epoch, j, batch_index, image, boxes, conf_preds, det_preds, class_preds, labels, save_dir, matches)
 
     return batch_loss
 
@@ -91,7 +93,7 @@ def train_one_epoch(epoch, train_loader, model, optimizer, device, new_w, new_h,
         total_loss += batch_loss.item()
 
     avg_train_loss = total_loss / len(train_loader)
-    print(f"Epoch {epoch}: Train Loss: {avg_train_loss}")
+    return avg_train_loss
 
 def validate_one_epoch(epoch, val_loader, model, device, new_w, new_h, num_classes):
     model.eval()
@@ -120,7 +122,7 @@ def validate_one_epoch(epoch, val_loader, model, device, new_w, new_h, num_class
             total_loss += batch_loss.item()
 
     avg_val_loss = total_loss / len(val_loader)
-    print(f"Epoch {epoch}: Validation Loss: {avg_val_loss}")
+    return avg_val_loss
 
 
 if __name__ == "__main__":
@@ -139,6 +141,8 @@ if __name__ == "__main__":
     num_boxes = 10
     best_val_loss = float('inf')
     new_w, new_h = 600, 300
+    patience = 500     # Patience parameter for early stopping
+    epochs_no_improve = 0
 
     # Initialize dataset and dataloader
     train_dataset = PascalVOCDataset(split='TRAIN', keep_difficult=False, max_images=max_images, new_w = new_w, new_h = new_h)
@@ -150,17 +154,31 @@ if __name__ == "__main__":
     model = SimpleObjectDetector(num_boxes=num_boxes, num_classes=num_classes).to(device)
     model.det_head.apply(init_weights)
 
-    pretrained_weights = torch.load('weights/weights_501.pth', map_location=device)
+    #pretrained_weights = torch.load('weights_max_581.pth', map_location=device)
     # Update model's state_dict
-    model.load_state_dict(pretrained_weights, strict=False)
+    #model.load_state_dict(pretrained_weights, strict=False)
 
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     #scheduler = StepLR(optimizer, step_size=30, gamma=0.1)
+    for epoch in range(0, num_epochs):
+        avg_train_loss = train_one_epoch(epoch, train_loader, model, optimizer, device, new_w, new_h, num_classes)
+        avg_val_loss = validate_one_epoch(epoch, val_loader, model, device, new_w, new_h, num_classes)
+        
+        print(f"Epoch {epoch}: Train Loss: {avg_train_loss}")
+        print(f"Epoch {epoch}: Validation Loss: {avg_val_loss}")
 
-    for epoch in range(num_epochs):
-        train_one_epoch(epoch, train_loader, model, optimizer, device, new_w, new_h, num_classes)
-        validate_one_epoch(epoch, val_loader, model, device, new_w, new_h, num_classes)
+        if avg_val_loss < best_val_loss:
+            best_val_loss = avg_val_loss
+            epochs_no_improve = 0
+            torch.save(model.state_dict(), f'weights_max_1021.pth')
+        else:
+            epochs_no_improve += 1
+            if epochs_no_improve == patience:
+                print(f"Early stopping triggered at epoch {epoch}")
+                break  # Stop training
+        
         if epoch%20==0:
             torch.save(model.state_dict(), f'weights_max_{521+epoch}.pth')
+
 
     print('Training and validation completed.')
