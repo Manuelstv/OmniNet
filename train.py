@@ -54,19 +54,31 @@ def save_images(epoch, j, batch_index, image, boxes, conf_preds, det_preds, clas
 
 def compute_batch_loss(batch, device, new_w, new_h, epoch, batch_index, images, selected_batches, save_dir):
     batch_loss = torch.tensor(0.0, device=device)
+    batch_unmatched_loss = torch.tensor(0.0, device=device)
+    batch_localization_loss = torch.tensor(0.0, device=device)
+    batch_classifcation_loss = torch.tensor(0.0, device=device)
     
     for j, (boxes, labels, det_preds, conf_preds, class_preds, image) in enumerate(batch):
-        loss, matches = custom_loss_function(det_preds, conf_preds, boxes, labels, class_preds, new_w, new_h)
+        loss, unmatched_loss, localization_loss, classification_loss, matches = custom_loss_function(det_preds, conf_preds, boxes, labels, class_preds, new_w, new_h)
         batch_loss += loss
+        batch_unmatched_loss += unmatched_loss
+        batch_localization_loss += localization_loss
+        batch_classifcation_loss += classification_loss
+
 
         if epoch % SAVE_IMAGE_EPOCH == 0 and batch_index in selected_batches:
             save_images(epoch, j, batch_index, image, boxes, conf_preds, det_preds, class_preds, labels, save_dir, matches)
 
-    return batch_loss
+    return batch_loss, batch_unmatched_loss, batch_localization_loss, batch_classifcation_loss
 
 def train_one_epoch(epoch, train_loader, model, optimizer, device, new_w, new_h, num_classes):
     model.train()
+
     total_loss = 0.0
+    total_unmatched_loss =0
+    total_localization_loss =0
+    total_classification_loss =0
+
     save_dir = f'images/epoch_{epoch}'
 
     if epoch % SAVE_IMAGE_EPOCH == 0:
@@ -86,18 +98,31 @@ def train_one_epoch(epoch, train_loader, model, optimizer, device, new_w, new_h,
             boxes_list, labels_list, detection_preds, confidence_preds, classification_preds, device, new_w, new_h, epoch, i, images
         )
 
-        batch_loss = compute_batch_loss(processed_batches, device, new_w, new_h, epoch, i, images, selected_batches, save_dir)
+        #compute batch loss and save images
+        batch_loss, batch_unmatched_loss, batch_localization_loss, batch_classifcation_loss  = compute_batch_loss(processed_batches, device, new_w, new_h, epoch, i, images, selected_batches, save_dir)
         batch_loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        #torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
+
         total_loss += batch_loss.item()
+        total_unmatched_loss += batch_unmatched_loss.item()
+        total_localization_loss += batch_localization_loss.item()
+        total_classification_loss += batch_classifcation_loss.item()
 
     avg_train_loss = total_loss / len(train_loader)
-    return avg_train_loss
+    avg_unmatched_loss = total_unmatched_loss / len(train_loader)
+    avg_localization_loss = total_localization_loss / len(train_loader)
+    avg_classification_loss = total_classification_loss / len(train_loader)
+    
+    return avg_train_loss, avg_unmatched_loss, avg_localization_loss, avg_classification_loss
 
 def validate_one_epoch(epoch, val_loader, model, device, new_w, new_h, num_classes):
     model.eval()
     total_loss = 0.0
+    total_unmatched_loss =0
+    total_localization_loss =0
+    total_classification_loss =0
+
     save_dir = f'images/val_epoch_{epoch}'
 
     if epoch % SAVE_IMAGE_EPOCH == 0:
@@ -116,25 +141,48 @@ def validate_one_epoch(epoch, val_loader, model, device, new_w, new_h, num_class
                 boxes_list, labels_list, detection_preds, confidence_preds, classification_preds, device, new_w, new_h, epoch, i, images
             )
 
-            batch_loss = compute_batch_loss(
+            batch_loss, batch_unmatched_loss, batch_localization_loss, batch_classifcation_loss = compute_batch_loss(
                 processed_batches, device, new_w, new_h, epoch, i, images, selected_batches, save_dir
             )
             total_loss += batch_loss.item()
+            total_unmatched_loss += batch_unmatched_loss.item()
+            total_localization_loss += batch_localization_loss.item()
+            total_classification_loss += batch_classifcation_loss.item()
 
     avg_val_loss = total_loss / len(val_loader)
-    return avg_val_loss
+    avg_unmatched_loss = total_unmatched_loss / len(val_loader)
+    avg_localization_loss = total_localization_loss / len(val_loader)
+    avg_classification_loss = total_classification_loss / len(val_loader)
+    
+    return avg_val_loss, avg_unmatched_loss, avg_localization_loss, avg_classification_loss
+
+
+def manage_training(epoch, avg_val_loss, model, best_val_loss, epochs_no_improve, patience):
+    stop_training = False
+
+    if avg_val_loss < best_val_loss:
+        best_val_loss = avg_val_loss
+        epochs_no_improve = 0
+        torch.save(model.state_dict(), 'weights_max_1021.pth')
+    else:
+        epochs_no_improve += 1
+        if epochs_no_improve == patience:
+            print(f"Early stopping triggered at epoch {epoch}")
+            stop_training = True  # Indicate to stop training
+
+    if epoch % 20 == 0:
+        torch.save(model.state_dict(), f'weights_max_{521+epoch}.pth')
+
+    return best_val_loss, epochs_no_improve, stop_training
 
 
 if __name__ == "__main__":
-
-    torch.cuda.empty_cache()
-
     # Set device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Hyperparameters
     num_epochs = 1000
-    learning_rate = 0.0001
+    learning_rate = 0.001
     batch_size = 10
     num_classes = 38
     max_images = 300
@@ -160,25 +208,16 @@ if __name__ == "__main__":
 
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     #scheduler = StepLR(optimizer, step_size=30, gamma=0.1)
+    
     for epoch in range(0, num_epochs):
-        avg_train_loss = train_one_epoch(epoch, train_loader, model, optimizer, device, new_w, new_h, num_classes)
-        avg_val_loss = validate_one_epoch(epoch, val_loader, model, device, new_w, new_h, num_classes)
+        avg_train_loss, avg_unmatched_loss, avg_localization_loss, avg_classification_loss = train_one_epoch(epoch, train_loader, model, optimizer, device, new_w, new_h, num_classes)
+        avg_val_loss, avg_unmatched_loss, avg_localization_loss, avg_classification_loss = validate_one_epoch(epoch, val_loader, model, device, new_w, new_h, num_classes)
         
-        print(f"Epoch {epoch}: Train Loss: {avg_train_loss}")
-        print(f"Epoch {epoch}: Validation Loss: {avg_val_loss}")
+        best_val_loss, epochs_no_improve, stop_training = manage_training(epoch, avg_val_loss, model, best_val_loss, epochs_no_improve, patience)
+    
+        print(epoch)
 
-        if avg_val_loss < best_val_loss:
-            best_val_loss = avg_val_loss
-            epochs_no_improve = 0
-            torch.save(model.state_dict(), f'weights_max_1021.pth')
-        else:
-            epochs_no_improve += 1
-            if epochs_no_improve == patience:
-                print(f"Early stopping triggered at epoch {epoch}")
-                break  # Stop training
-        
-        if epoch%20==0:
-            torch.save(model.state_dict(), f'weights_max_{521+epoch}.pth')
-
+        if stop_training:
+            break  # Exit the training loop
 
     print('Training and validation completed.')

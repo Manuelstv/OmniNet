@@ -726,13 +726,15 @@ def clip_gradient(optimizer, grad_clip):
         for param in group['params']:
             if param.grad is not None:
                 param.grad.data.clamp_(-grad_clip, grad_clip)
-
+'''
 def save_images(boxes, det_preds, new_w, new_h, n, images):
-    img1 = images[n].mul(255).clamp(0, 255).permute(1, 2, 0).cpu().numpy().astype(np.uint8).copy()
-    draw_boxes(img1, boxes, (0, 255, 0), new_w, new_h)
-    draw_boxes(img1, det_preds, (255, 0, 0), new_w, new_h)
-    cv2.imwrite(f'/home/mstveras/images/img{n}.jpg', img1)
+    img = images[n].mul(255).clamp(0, 255).permute(1, 2, 0).cpu().numpy().astype(np.uint8).copy()
+    draw_boxes(img, boxes, (0, 255, 0), new_w, new_h)
+    draw_boxes(img, det_preds, (255, 0, 0), new_w, new_h)
 
+    img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+    cv2.imwrite(f'/home/mstveras/images/img{n}.jpg', img)
+'''
 def draw_boxes(image, boxes, color, new_w, new_h):
     for box in boxes:
         x_min, y_min, x_max, y_max = [int(box[i] * new_w if i % 2 == 0 else box[i] * new_h) for i in range(4)]

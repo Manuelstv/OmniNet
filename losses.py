@@ -138,6 +138,6 @@ def custom_loss_function(det_preds, conf_preds, boxes, labels, class_preds, new_
 
       total_unmatched_loss += distance_penalty
 
-    total_loss = (total_confidence_loss + 1.5*total_localization_loss + 0.1*total_classification_loss + total_unmatched_loss) / (len(matches) + len(unmatched_dets)) if matches else total_unmatched_loss*3
+    total_loss = (total_confidence_loss + 2*total_localization_loss + 0.1*total_classification_loss + total_unmatched_loss) / (len(matches) + len(unmatched_dets)) if matches else total_unmatched_loss*3
 
-    return total_loss, matches
+    return total_loss, total_unmatched_loss, total_unmatched_loss, total_classification_loss, matches
