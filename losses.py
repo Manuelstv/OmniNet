@@ -5,6 +5,40 @@ import torch.nn.functional as F
 import pdb
 
 
+
+def iou_matching(gt_boxes_in, pred_boxes_in, new_w, new_h, iou_threshold):
+    """
+    Match ground truth and predicted boxes based on IoU scores, simply assigning a match if IoU > 0.5.
+    This function does not use Hungarian matching for initial pair selection.
+    
+    Args:
+    - gt_boxes_in (Tensor): A tensor of ground truth bounding boxes.
+    - pred_boxes_in (Tensor): A tensor of predicted bounding boxes.
+    
+    Returns:
+    - list of tuples: Matched pairs of ground truth and predicted boxes with IoU > 0.5.
+    - Tensor: IoU scores for the matched pairs.
+    """
+    if gt_boxes_in.size(0) == 0 or pred_boxes_in.size(0) == 0:
+        return [], None
+    
+    gt_boxes = gt_boxes_in.clone().to(torch.float)
+    pred_boxes = pred_boxes_in.clone().to(torch.float)
+    
+    # Compute the IoU matrix
+    iou_matrix = fov_iou_batch(gt_boxes, pred_boxes, new_w, new_h)
+    
+    # Find matches where IoU > 0.5
+    matched_pairs = []
+    for gt_idx in range(gt_boxes.size(0)):
+        for pred_idx in range(pred_boxes.size(0)):
+            if iou_matrix[gt_idx, pred_idx] > iou_threshold:
+                matched_pairs.append((gt_idx, pred_idx))
+    
+    # No need to convert IoUs to cost or use linear_sum_assignment from scipy
+    
+    return matched_pairs, iou_matrix
+
 def hungarian_matching(gt_boxes_in, pred_boxes_in, new_w, new_h):
     """
     Perform Hungarian matching between ground truth and predicted boxes to find the best match based on IoU scores.
@@ -89,19 +123,18 @@ def custom_loss_function(epoch, det_preds, conf_preds, boxes, labels, class_pred
     - The loss components are normalized by the total number of matches and 
       unmatched detections.
     """
-    if epoch <=10:
-      iou_threshold = 0.2  # IoU threshold
-    else:
-      iou_threshold = 0.4
 
-    confidence_threshold = 0.2  # Confidence threshold for applying regression loss
-    matches, _ = hungarian_matching(boxes, det_preds, new_w, new_h)
+    #confidence_threshold = 0.2  # Confidence threshold for applying regression loss
+    matches, _ = iou_matching(boxes, det_preds, new_w, new_h, iou_threshold = 0.2)
 
     total_loss = 0.0
     total_confidence_loss = 0.0
     total_localization_loss = 0.0
     total_classification_loss = 0.0
+    total_unmatched_classification =0.0
     total_unmatched_loss = 0.0
+    total_matched_loss = 0.0
+    class_criterion = torch.nn.CrossEntropyLoss()
 
     matched_dets = set(pred_idx for _, pred_idx in matches)
     all_dets = set(range(len(det_preds)))
@@ -110,39 +143,32 @@ def custom_loss_function(epoch, det_preds, conf_preds, boxes, labels, class_pred
     for gt_idx, pred_idx in matches:
         gt_box = boxes[gt_idx]
         pred_box = det_preds[pred_idx]
-        pred_confidence = conf_preds[pred_idx].view(-1)
         class_label = labels[gt_idx]
         pred_class = class_preds[pred_idx]
 
         iou = fov_iou(pred_box, gt_box)
-        target_confidence = torch.tensor([1.0 if iou > iou_threshold else 0], dtype=torch.float, device=pred_confidence.device)
-        
-        confidence_loss = F.binary_cross_entropy(pred_confidence, target_confidence)
-        total_confidence_loss += confidence_loss
 
-        class_criterion = torch.nn.CrossEntropyLoss()
-        #class_label = class_label.to(torch.float)
-
-        #print(pred_class.unsqueeze(0), class_label.unsqueeze(0))
         classification_loss = class_criterion(pred_class.unsqueeze(0), class_label.unsqueeze(0))
         total_classification_loss += classification_loss
 
-        # Apply localization loss only for confident predictions
-        if pred_confidence.item() > confidence_threshold:
-            localization_loss = 1 - iou
-            total_localization_loss += localization_loss
+        localization_loss = 1 - iou
+        total_localization_loss += localization_loss
 
-    # Penalty for each unmatched detection
-    unmatched_penalty = 1
+    unmatched_penalty = 0.1
     for det_idx in unmatched_dets:
       pred_box = det_preds[det_idx]
-      pred_confidence = conf_preds[det_idx].item()
-      # Find nearest ground truth box
+      pred_class = class_preds[det_idx]
+
       nearest_distance = min(box_center_distance(pred_box, gt_box) for gt_box in boxes)
+      class_label = torch.tensor([5], device='cuda:0')
       # Calculate distance-based penalty, scaled by confidence
-      distance_penalty = nearest_distance * pred_confidence * unmatched_penalty
+      distance_penalty = nearest_distance * unmatched_penalty
+
+      unmatched_classification = class_criterion(pred_class.unsqueeze(0), class_label)
+      total_unmatched_classification += unmatched_classification
+      
       total_unmatched_loss += distance_penalty
 
-    total_loss = (0.4*total_confidence_loss + 0.5*total_localization_loss + 0.1*total_classification_loss + total_unmatched_loss) / (len(matches) + len(unmatched_dets)) if matches else total_unmatched_loss*3
+    total_loss = (total_unmatched_loss+total_unmatched_classification+total_localization_loss+total_classification_loss) / (len(matches) + len(unmatched_dets)) if matches else total_unmatched_loss*3
 
-    return total_loss, total_unmatched_loss, 0.5*total_localization_loss, 0.1*total_classification_loss, 0.4*total_confidence_loss, matches
+    return total_loss, total_unmatched_loss, total_localization_loss, total_classification_loss, matches

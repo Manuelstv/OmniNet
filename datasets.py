@@ -58,49 +58,15 @@ class PascalVOCDataset(Dataset):
         root = tree.getroot()
         boxes = []
         labels = []
-        confidences = []
+        #confidences = []
         difficulties = []
 
         label_mapping = {
-        'airconditioner': 0,
-        'backpack': 1,
-        'bathtub': 2,
-        'bed': 3,
-        'board': 4,
-        'book': 5,
-        'bottle': 6,
-        'bowl': 7,
-        'cabinet': 8,
-        'chair': 9,
-        'clock': 10,
-        'computer': 11,
-        'cup': 12,
-        'door': 13,
-        'fan': 14,
-        'fireplace': 15,
-        'heater': 16,
-        'keyboard': 17,
-        'light': 18,
-        'microwave': 19,
-        'mirror': 20,
-        'mouse': 21,
-        'oven': 22,
-        'person': 23,
-        'phone': 24,
-        'picture': 25,
-        'potted plant': 26,
-        'refrigerator': 27,
-        'sink': 28,
-        'sofa': 29,
-        'table': 30,
-        'toilet': 31,
-        'tv': 32,
-        'vase': 33,
-        'washer': 34,
-        'window': 35,
-        'wine glass': 36}
-
-
+        'chair': 0,
+        'light': 1,
+        'person': 2,
+        'picture': 3,
+        'door': 4}
 
         h, w = image.shape[:2]
 
@@ -131,11 +97,11 @@ class PascalVOCDataset(Dataset):
 
                 boxes.append([xmin,ymin,xmax,ymax])
                 labels.append(label_mapping[obj.find('name').text])
-                confidences.append(1)
+                #confidences.append(1)
 
         boxes = torch.FloatTensor(boxes)
         labels = torch.LongTensor(labels)
-        confidences = torch.FloatTensor(confidences).unsqueeze(1)  # Convert to tensor
+        #confidences = torch.FloatTensor(confidences).unsqueeze(1)  # Convert to tensor
         
         image, labels, difficulties = transform(image, labels, difficulties, split=self.split, new_w = self.new_w, new_h = self.new_h) 
 

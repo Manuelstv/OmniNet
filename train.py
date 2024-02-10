@@ -63,18 +63,18 @@ def compute_batch_loss(batch, device, new_w, new_h, epoch, batch_index, images, 
     batch_confidence_loss = torch.tensor(0.0, device=device)
     
     for j, (boxes, labels, det_preds, conf_preds, class_preds, image) in enumerate(batch):
-        loss, unmatched_loss, localization_loss, classification_loss, confidence_loss, matches = custom_loss_function(epoch, det_preds, conf_preds, boxes, labels, class_preds, new_w, new_h)
+        loss, unmatched_loss, localization_loss, classification_loss, matches = custom_loss_function(epoch, det_preds, conf_preds, boxes, labels, class_preds, new_w, new_h)
         batch_loss += loss
         batch_unmatched_loss += unmatched_loss
         batch_localization_loss += localization_loss
         batch_classifcation_loss += classification_loss
-        batch_confidence_loss += confidence_loss
+        #batch_confidence_loss += confidence_loss
 
 
         if epoch % SAVE_IMAGE_EPOCH == 0 and batch_index in selected_batches:
             save_images(epoch, j, batch_index, image, boxes, conf_preds, det_preds, class_preds, labels, save_dir, matches)
 
-    return batch_loss, batch_unmatched_loss, batch_localization_loss, batch_classifcation_loss, batch_confidence_loss
+    return batch_loss, batch_unmatched_loss, batch_localization_loss, batch_classifcation_loss
 
 def train_one_epoch(epoch, train_loader, model, optimizer, device, new_w, new_h, num_classes, run_dir):
     model.train()
@@ -105,7 +105,7 @@ def train_one_epoch(epoch, train_loader, model, optimizer, device, new_w, new_h,
         )
 
         #compute batch loss and save images
-        batch_loss, batch_unmatched_loss, batch_localization_loss, batch_classifcation_loss, batch_confidence_loss  = compute_batch_loss(processed_batches, device, new_w, new_h, epoch, i, images, selected_batches, save_dir)
+        batch_loss, batch_unmatched_loss, batch_localization_loss, batch_classifcation_loss  = compute_batch_loss(processed_batches, device, new_w, new_h, epoch, i, images, selected_batches, save_dir)
         batch_loss.backward()
         #torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
@@ -114,15 +114,15 @@ def train_one_epoch(epoch, train_loader, model, optimizer, device, new_w, new_h,
         total_unmatched_loss += batch_unmatched_loss.item()
         total_localization_loss += batch_localization_loss.item()
         total_classification_loss += batch_classifcation_loss.item()
-        total_confidence_loss += batch_confidence_loss.item()
+        #total_confidence_loss += batch_confidence_loss.item()
 
     avg_train_loss = total_loss / len(train_loader)
     avg_unmatched_loss = total_unmatched_loss / len(train_loader)
     avg_localization_loss = total_localization_loss / len(train_loader)
     avg_classification_loss = total_classification_loss / len(train_loader)
-    avg_confidence_loss = total_confidence_loss / len(train_loader)
+    #avg_confidence_loss = total_confidence_loss / len(train_loader)
     
-    return avg_train_loss, avg_unmatched_loss, avg_localization_loss, avg_classification_loss, avg_confidence_loss
+    return avg_train_loss, avg_unmatched_loss, avg_localization_loss, avg_classification_loss
 
 def validate_one_epoch(epoch, val_loader, model, device, new_w, new_h, num_classes, run_dir):
     model.eval()
@@ -150,22 +150,22 @@ def validate_one_epoch(epoch, val_loader, model, device, new_w, new_h, num_class
                 boxes_list, labels_list, detection_preds, confidence_preds, classification_preds, device, new_w, new_h, epoch, i, images
             )
 
-            batch_loss, batch_unmatched_loss, batch_localization_loss, batch_classifcation_loss, batch_confidence_loss = compute_batch_loss(
+            batch_loss, batch_unmatched_loss, batch_localization_loss, batch_classifcation_loss = compute_batch_loss(
                 processed_batches, device, new_w, new_h, epoch, i, images, selected_batches, save_dir
             )
             total_loss += batch_loss.item()
             total_unmatched_loss += batch_unmatched_loss.item()
             total_localization_loss += batch_localization_loss.item()
             total_classification_loss += batch_classifcation_loss.item()
-            total_confidence_loss += batch_confidence_loss.item()
+            #total_confidence_loss += batch_confidence_loss.item()
 
     avg_val_loss = total_loss / len(val_loader)
     avg_unmatched_loss = total_unmatched_loss / len(val_loader)
     avg_localization_loss = total_localization_loss / len(val_loader)
     avg_classification_loss = total_classification_loss / len(val_loader)
-    avg_confidence_loss = total_confidence_loss / len(val_loader)
+    #avg_confidence_loss = total_confidence_loss / len(val_loader)
     
-    return avg_val_loss, avg_unmatched_loss, avg_localization_loss, avg_classification_loss, avg_confidence_loss
+    return avg_val_loss, avg_unmatched_loss, avg_localization_loss, avg_classification_loss
 
 
 def manage_training(epoch, avg_val_loss, model, best_val_loss, epochs_no_improve, patience, run_dir):
@@ -186,8 +186,7 @@ def manage_training(epoch, avg_val_loss, model, best_val_loss, epochs_no_improve
 
     return best_val_loss, epochs_no_improve, stop_training
 
-
-def plot_and_save_losses(epoch, train_loss, val_loss, train_loc_loss, val_loc_loss, train_class_loss, val_class_loss, train_unmatched_loss, val_unmatched_loss, train_confidence_loss, val_confidence_loss, num_epochs, save_dir='loss_graphs'):
+def plot_and_save_losses(epoch, train_loss, val_loss, train_loc_loss, val_loc_loss, train_class_loss, val_class_loss, train_unmatched_loss, val_unmatched_loss, num_epochs, save_dir='loss_graphs'):
     """
     Update to plot and save training and validation loss graphs every 10 epochs.
     :param epoch: Current epoch number.
@@ -207,8 +206,6 @@ def plot_and_save_losses(epoch, train_loss, val_loss, train_loc_loss, val_loc_lo
     val_class_losses.append(val_class_loss)
     train_unmatched_losses.append(train_unmatched_loss)
     val_unmatched_losses.append(val_unmatched_loss)
-    train_confidence_losses.append(train_confidence_loss)
-    val_confidence_losses.append(val_confidence_loss)
 
     # Plot and save every 10 epochs or after the last epoch
     if (epoch + 1) % 1 == 0 or (epoch + 1) == num_epochs:
@@ -221,7 +218,7 @@ def plot_and_save_losses(epoch, train_loss, val_loss, train_loc_loss, val_loc_lo
         plt.plot(train_loc_losses, label='Localization Loss')
         plt.plot(train_class_losses, label='Classification Loss')
         plt.plot(train_unmatched_losses, label='Unmatched Loss')
-        plt.plot(train_confidence_losses, label='Confidence Loss')
+        #plt.plot(train_confidence_losses, label='Confidence Loss')
         plt.title('Training Losses through Epoch {}'.format(epoch + 1))
         plt.xlabel('Epoch')
         plt.ylabel('Loss')
@@ -235,7 +232,7 @@ def plot_and_save_losses(epoch, train_loss, val_loss, train_loc_loss, val_loc_lo
         plt.plot(val_loc_losses, label='Localization Loss')
         plt.plot(val_class_losses, label='Classification Loss')
         plt.plot(val_unmatched_losses, label='Unmatched Loss')
-        plt.plot(val_confidence_losses, label='Condidence Loss')
+        #plt.plot(val_confidence_losses, label='Condidence Loss')
         plt.title('Validation Losses through Epoch {}'.format(epoch + 1))
         plt.xlabel('Epoch')
         plt.ylabel('Loss')
@@ -262,7 +259,7 @@ if __name__ == "__main__":
     num_epochs = 1000
     learning_rate = 0.001
     batch_size = 10
-    num_classes = 38
+    num_classes = 5+1
     num_boxes = 10
     best_val_loss = float('inf')
     new_w, new_h = 600, 300
@@ -296,18 +293,17 @@ if __name__ == "__main__":
     model.det_head.apply(init_weights)
 
     #pretrained_weights = torch.load('weights_max_581.pth', map_location=device)
-    # Update model's state_dict
     #model.load_state_dict(pretrained_weights, strict=False)
 
     optimizer = optim.SGD(model.parameters(), lr=learning_rate)
     #scheduler = StepLR(optimizer, step_size=10, gamma=0.1)
     
     for epoch in range(1, num_epochs):
-        avg_train_loss, avg_unmatched_loss_t, avg_localization_loss_t, avg_classification_loss_t, avg_confidence_loss_t = train_one_epoch(epoch, train_loader, model, optimizer, device, new_w, new_h, num_classes, run_dir)
-        print(f"Epoch {epoch}: Train Loss: {avg_train_loss}, unmatched: {avg_unmatched_loss_t}, localization {avg_localization_loss_t}, classification {avg_classification_loss_t}, confidence {avg_confidence_loss_t}")
+        avg_train_loss, avg_unmatched_loss_t, avg_localization_loss_t, avg_classification_loss_t = train_one_epoch(epoch, train_loader, model, optimizer, device, new_w, new_h, num_classes, run_dir)
+        print(f"Epoch {epoch}: Train Loss: {avg_train_loss}, unmatched: {avg_unmatched_loss_t}, localization {avg_localization_loss_t}, classification {avg_classification_loss_t}")
         
-        avg_val_loss, avg_unmatched_loss, avg_localization_loss, avg_classification_loss, avg_confidence_loss = validate_one_epoch(epoch, val_loader, model, device, new_w, new_h, num_classes, run_dir)
-        print(f"Epoch {epoch}: Validation Loss: {avg_val_loss}, unmatched: {avg_unmatched_loss}, localization {avg_localization_loss}, classification {avg_classification_loss}, confidence {avg_confidence_loss}")
+        avg_val_loss, avg_unmatched_loss, avg_localization_loss, avg_classification_loss = validate_one_epoch(epoch, val_loader, model, device, new_w, new_h, num_classes, run_dir)
+        print(f"Epoch {epoch}: Validation Loss: {avg_val_loss}, unmatched: {avg_unmatched_loss}, localization {avg_localization_loss}, classification {avg_classification_loss}")
 
         best_val_loss, epochs_no_improve, stop_training = manage_training(epoch, avg_val_loss, model, best_val_loss, epochs_no_improve, patience, run_dir)
     
@@ -317,13 +313,8 @@ if __name__ == "__main__":
         avg_localization_loss_t, avg_localization_loss,  # Assuming these are available
         avg_classification_loss_t, avg_classification_loss,  # Same assumption
         avg_unmatched_loss_t, avg_unmatched_loss,  # Assuming these are tracked
-        avg_confidence_loss_t, avg_confidence_loss,
         num_epochs,
-        run_dir
-        )
-
+        run_dir)
 
         if stop_training:
             break  # Exit the training loop
-
-    print('Training and validation completed.')
