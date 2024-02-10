@@ -643,7 +643,7 @@ def transform(image, labels, difficulties, split, new_w, new_h):
     new_image = FT.to_tensor(new_image)
 
     # Normalize by mean and standard deviation of ImageNet data that our base VGG was trained on
-    new_image = FT.normalize(new_image, mean=mean, std=std)
+    #new_image = FT.normalize(new_image, mean=mean, std=std)
     #new_image = new_image.mul(255).permute(1, 2, 0).byte().numpy()
     #print(new_image.dtype)
 

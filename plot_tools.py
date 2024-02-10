@@ -176,5 +176,5 @@ def process_and_save_image(images, matches, gt_boxes, confidences, det_preds, cl
         cv2.putText(images, label, label_position, cv2.FONT_HERSHEY_SIMPLEX, 0.5, color_pred, 2)
 
     # Save the image with plotted boxes
-    images = cv2.cvtColor(images, cv2.COLOR_BGR2RGB)
+    ##images = cv2.cvtColor(images, cv2.COLOR_BGR2RGB)
     cv2.imwrite(save_path, images)

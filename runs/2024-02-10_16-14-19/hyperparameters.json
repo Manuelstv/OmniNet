@@ -1,0 +1,10 @@
+{
+    "num_epochs": 1000,
+    "learning_rate": 0.001,
+    "batch_size": 10,
+    "num_classes": 38,
+    "num_boxes": 10,
+    "new_width": 600,
+    "new_height": 300,
+    "patience": 500
+}
