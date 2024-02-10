@@ -13,3 +13,6 @@ weights*
 images
 dataset
 images*
+runs
+dataset_planar
+
