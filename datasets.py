@@ -58,7 +58,6 @@ class PascalVOCDataset(Dataset):
         root = tree.getroot()
         boxes = []
         labels = []
-        #confidences = []
         difficulties = []
 
         label_mapping = {

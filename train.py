@@ -15,14 +15,12 @@ from foviou import *
 from model import (SimpleObjectDetector, SimpleObjectDetectorMobile,
                    SimpleObjectDetectorResnet)
 from plot_tools import process_and_save_image
-from sphiou import Sph
 from losses import *
 from utils import *
 from torch.optim.lr_scheduler import StepLR
 import os
-import random
 
-SAVE_IMAGE_EPOCH = 2
+SAVE_IMAGE_EPOCH = 20
 NUM_BATCHES_TO_SAVE = 1
 
 
@@ -248,12 +246,11 @@ if __name__ == "__main__":
     train_loc_losses, val_loc_losses = [], []
     train_class_losses, val_class_losses = [], []
     train_unmatched_losses, val_unmatched_losses = [], []
-    train_confidence_losses, val_confidence_losses = [], []
 
     # Hyperparameters
     num_epochs = 1000
-    learning_rate = 0.00001
-    batch_size = 10
+    learning_rate = 0.0001
+    batch_size = 2
     num_classes = 5+1
     num_boxes = 10
     best_val_loss = float('inf')
@@ -287,7 +284,7 @@ if __name__ == "__main__":
     model = SimpleObjectDetector(num_boxes=num_boxes, num_classes=num_classes).to(device)
     model.det_head.apply(init_weights)
 
-    #pretrained_weights = torch.load('weights_max_581.pth', map_location=device)
+    #pretrained_weights = torch.load('/home/mstveras/OmniNet/runs/2024-02-11_12-18-28/best.pth', map_location=device)
     #model.load_state_dict(pretrained_weights, strict=False)
 
     optimizer = optim.SGD(model.parameters(), lr=learning_rate)

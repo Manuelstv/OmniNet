@@ -125,12 +125,13 @@ def custom_loss_function(epoch, det_preds, boxes, labels, class_preds, new_w, ne
     """
 
     #confidence_threshold = 0.2  # Confidence threshold for applying regression loss
-    matches, _ = iou_matching(boxes, det_preds, new_w, new_h, iou_threshold = 0.2)
+    matches, _ = iou_matching(boxes, det_preds, new_w, new_h, iou_threshold = 0.5)
 
     total_loss = 0.0
     total_localization_loss = 0.0
     total_classification_loss = 0.0
     total_unmatched_loss = 0.0
+    unmatched_loss =0.0
     class_criterion = torch.nn.CrossEntropyLoss()
 
     matched_dets = set(pred_idx for _, pred_idx in matches)
@@ -143,24 +144,24 @@ def custom_loss_function(epoch, det_preds, boxes, labels, class_preds, new_w, ne
         class_label = labels[gt_idx]
         pred_class = class_preds[pred_idx]
 
-        iou = fov_iou(pred_box, gt_box)
+        localization_loss = fov_giou_loss(pred_box, gt_box)
 
         classification_loss = class_criterion(pred_class.unsqueeze(0), class_label.unsqueeze(0))
         total_classification_loss += classification_loss
 
-        localization_loss = 1 - iou
+        #localization_loss = 1 - iou
         total_localization_loss += localization_loss
 
-    unmatched_penalty = 0.05
     for det_idx in unmatched_dets:
       pred_box = det_preds[det_idx]
       pred_class = class_preds[det_idx]
       class_label = torch.tensor([5], device='cuda:0')
 
-      nearest_distance = min(box_center_distance(pred_box, gt_box) for gt_box in boxes)
+      #nearest_distance = min(box_center_distance(pred_box, gt_box) for gt_box in boxes)
       # Calculate distance-based penalty, scaled by confidence
-      distance_penalty = nearest_distance * unmatched_penalty
-      total_unmatched_loss += distance_penalty
+      #distance_penalty = nearest_distance * unmatched_penalty
+      unmatched_loss = fov_giou_loss(pred_box, gt_box)
+      total_unmatched_loss += unmatched_loss
 
       classification_loss = class_criterion(pred_class.unsqueeze(0), class_label)
       total_classification_loss += classification_loss
