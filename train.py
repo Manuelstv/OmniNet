@@ -38,15 +38,14 @@ def init_weights(m):
     - If the layer has a bias term, it will be initialized to zero.
     """
     if isinstance(m, nn.Linear):
-        nn.init.uniform_(m.weight, -10, 10)
+        nn.init.uniform_(m.weight, -15, 15)
         if m.bias is not None:
             nn.init.constant_(m.bias, 0)
 
-def save_images(epoch, j, batch_index, image, boxes, conf_preds, det_preds, class_preds, labels, save_dir, matches):
+def save_images(epoch, j, batch_index, image, boxes, det_preds, class_preds, labels, save_dir, matches):
     save_path = os.path.join(save_dir, f'gt_pred_{batch_index}_{j}.jpg')
     process_and_save_image(
         image, matches, gt_boxes=boxes.cpu(),
-        confidences=conf_preds.cpu(),
         det_preds=det_preds.cpu().detach(),
         class_preds = class_preds,
         labels = labels,
@@ -60,19 +59,17 @@ def compute_batch_loss(batch, device, new_w, new_h, epoch, batch_index, images, 
     batch_unmatched_loss = torch.tensor(0.0, device=device)
     batch_localization_loss = torch.tensor(0.0, device=device)
     batch_classifcation_loss = torch.tensor(0.0, device=device)
-    batch_confidence_loss = torch.tensor(0.0, device=device)
+    #batch_confidence_loss = torch.tensor(0.0, device=device)
     
-    for j, (boxes, labels, det_preds, conf_preds, class_preds, image) in enumerate(batch):
-        loss, unmatched_loss, localization_loss, classification_loss, matches = custom_loss_function(epoch, det_preds, conf_preds, boxes, labels, class_preds, new_w, new_h)
+    for j, (boxes, labels, det_preds, class_preds, image) in enumerate(batch):
+        loss, unmatched_loss, localization_loss, classification_loss, matches = custom_loss_function(epoch, det_preds, boxes, labels, class_preds, new_w, new_h)
         batch_loss += loss
         batch_unmatched_loss += unmatched_loss
         batch_localization_loss += localization_loss
         batch_classifcation_loss += classification_loss
-        #batch_confidence_loss += confidence_loss
-
 
         if epoch % SAVE_IMAGE_EPOCH == 0 and batch_index in selected_batches:
-            save_images(epoch, j, batch_index, image, boxes, conf_preds, det_preds, class_preds, labels, save_dir, matches)
+            save_images(epoch, j, batch_index, image, boxes, det_preds, class_preds, labels, save_dir, matches)
 
     return batch_loss, batch_unmatched_loss, batch_localization_loss, batch_classifcation_loss
 
@@ -83,8 +80,6 @@ def train_one_epoch(epoch, train_loader, model, optimizer, device, new_w, new_h,
     total_unmatched_loss =0
     total_localization_loss =0
     total_classification_loss =0
-    total_confidence_loss =0
-
     save_dir = os.path.join(run_dir,f'images/epoch_{epoch}')
 
     if epoch % SAVE_IMAGE_EPOCH == 0:
@@ -98,16 +93,16 @@ def train_one_epoch(epoch, train_loader, model, optimizer, device, new_w, new_h,
     for i, (images, boxes_list, labels_list) in enumerate(train_loader):
         images = images.to(device)
         optimizer.zero_grad()
-        detection_preds, confidence_preds, classification_preds = model(images)
+        detection_preds, classification_preds = model(images)
 
         processed_batches = process_batches(
-            boxes_list, labels_list, detection_preds, confidence_preds, classification_preds, device, new_w, new_h, epoch, i, images
+            boxes_list, labels_list, detection_preds, classification_preds, device, new_w, new_h, epoch, i, images
         )
 
         #compute batch loss and save images
         batch_loss, batch_unmatched_loss, batch_localization_loss, batch_classifcation_loss  = compute_batch_loss(processed_batches, device, new_w, new_h, epoch, i, images, selected_batches, save_dir)
         batch_loss.backward()
-        #torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
 
         total_loss += batch_loss.item()
@@ -130,7 +125,6 @@ def validate_one_epoch(epoch, val_loader, model, device, new_w, new_h, num_class
     total_unmatched_loss =0
     total_localization_loss =0
     total_classification_loss =0
-    total_confidence_loss =0
 
     save_dir = os.path.join(run_dir,f'images/val_epoch_{epoch}')
 
@@ -144,10 +138,11 @@ def validate_one_epoch(epoch, val_loader, model, device, new_w, new_h, num_class
     with torch.no_grad():
         for i, (images, boxes_list, labels_list) in enumerate(val_loader):
             images = images.to(device)
-            detection_preds, confidence_preds, classification_preds = model(images)
+            detection_preds, classification_preds = model(images)
 
             processed_batches = process_batches(
-                boxes_list, labels_list, detection_preds, confidence_preds, classification_preds, device, new_w, new_h, epoch, i, images
+                boxes_list, labels_list, detection_preds, 
+                 classification_preds, device, new_w, new_h, epoch, i, images
             )
 
             batch_loss, batch_unmatched_loss, batch_localization_loss, batch_classifcation_loss = compute_batch_loss(
@@ -257,7 +252,7 @@ if __name__ == "__main__":
 
     # Hyperparameters
     num_epochs = 1000
-    learning_rate = 0.001
+    learning_rate = 0.00001
     batch_size = 10
     num_classes = 5+1
     num_boxes = 10
@@ -298,7 +293,7 @@ if __name__ == "__main__":
     optimizer = optim.SGD(model.parameters(), lr=learning_rate)
     #scheduler = StepLR(optimizer, step_size=10, gamma=0.1)
     
-    for epoch in range(1, num_epochs):
+    for epoch in range(0, num_epochs):
         avg_train_loss, avg_unmatched_loss_t, avg_localization_loss_t, avg_classification_loss_t = train_one_epoch(epoch, train_loader, model, optimizer, device, new_w, new_h, num_classes, run_dir)
         print(f"Epoch {epoch}: Train Loss: {avg_train_loss}, unmatched: {avg_unmatched_loss_t}, localization {avg_localization_loss_t}, classification {avg_classification_loss_t}")
         

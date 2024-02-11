@@ -129,7 +129,7 @@ def plot_bfov(image, v00, u00, a_lat, a_long, color, h, w):
 
     return image
 
-def process_and_save_image(images, matches, gt_boxes, confidences, det_preds, class_preds, labels, threshold, color_gt, save_path):
+def process_and_save_image(images, matches, gt_boxes, det_preds, class_preds, labels, threshold, color_gt, save_path):
     """
     Process an image, plot ground truth and predictions (above a confidence threshold), and save the image.
     
@@ -155,26 +155,21 @@ def process_and_save_image(images, matches, gt_boxes, confidences, det_preds, cl
         images = plot_bfov(images, v00, u00, a_long, a_lat, color_gt, 300, 600)
 
     # Iterate through predictions and their associated confidences
-    for pred, conf in zip(det_preds, confidences):
-        conf = conf.item()  # Assuming conf is a tensor with a single value
+    for pred in det_preds:
+        #conf = conf.item()  # Assuming conf is a tensor with a single value
         box = pred[:4]
         u00, v00, a_lat1, a_long1 = (box[0]+1)*(600/2), (box[1]+1)*(300/2), 90*box[2], 90*box[3]
         a_long = np.radians(a_long1)
         a_lat = np.radians(a_lat1)
             
         # Annotate the image with the confidence score
-        label = f'{conf:.2f}'  # Format the confidence to 2 decimal places
+        #label = f'{conf:.2f}'  # Format the confidence to 2 decimal places
         # Position for the text, you might need to adjust depending on the image
+        label ='pred'
         label_position = (int(u00), int(v00) - 10)
-        
-        if conf>0.6:
-            color_pred = (255,0,0)
-        else:
-            color_pred = (0,0,255)
+        color_pred =(255,0,0)
         
         images = plot_bfov(images, v00, u00, a_long, a_lat, color_pred, 300, 600)
         cv2.putText(images, label, label_position, cv2.FONT_HERSHEY_SIMPLEX, 0.5, color_pred, 2)
 
-    # Save the image with plotted boxes
-    ##images = cv2.cvtColor(images, cv2.COLOR_BGR2RGB)
     cv2.imwrite(save_path, images)

@@ -647,7 +647,6 @@ def transform(image, labels, difficulties, split, new_w, new_h):
     #new_image = new_image.mul(255).permute(1, 2, 0).byte().numpy()
     #print(new_image.dtype)
 
-
     return new_image, new_labels, new_difficulties
 
 
@@ -747,9 +746,9 @@ def save_best_model(epoch, model):
     #print(f"Model saved to {best_model_file} with Validation Loss: {avg_val_loss}")
 
 #editar para incluir confidence predicitons
-def process_batches(boxes_list, labels_list, detection_preds, confidence_preds, classification_preds, device, new_w, new_h, epoch, n, images):
-    for boxes, labels, det_preds, conf_preds, class_preds, image in zip(boxes_list, labels_list, detection_preds, confidence_preds, classification_preds, images):
-        boxes, det_preds, conf_preds, labels, class_preds, image = boxes.to(device), det_preds.to(device), conf_preds.to(device), labels.to(device), class_preds.to(device), image.to(device)
+def process_batches(boxes_list, labels_list, detection_preds, classification_preds, device, new_w, new_h, epoch, n, images):
+    for boxes, labels, det_preds,  class_preds, image in zip(boxes_list, labels_list, detection_preds, classification_preds, images):
+        boxes, det_preds, labels, class_preds, image = boxes.to(device), det_preds.to(device), labels.to(device), class_preds.to(device), image.to(device)
         #save_images(boxes, det_preds, new_w, new_h, 0, images)
         #n += 1
-        yield boxes, labels, det_preds, conf_preds, class_preds, image
+        yield boxes, labels, det_preds, class_preds, image

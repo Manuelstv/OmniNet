@@ -79,7 +79,7 @@ def box_center_distance(box1, box2):
     return torch.sqrt((box1[0] - box2[0])**2 + (box1[1] - box2[1])**2)
 
 
-def custom_loss_function(epoch, det_preds, conf_preds, boxes, labels, class_preds, new_w, new_h):
+def custom_loss_function(epoch, det_preds, boxes, labels, class_preds, new_w, new_h):
     """
     Calculate the custom loss for an object detection model.
 
@@ -128,12 +128,9 @@ def custom_loss_function(epoch, det_preds, conf_preds, boxes, labels, class_pred
     matches, _ = iou_matching(boxes, det_preds, new_w, new_h, iou_threshold = 0.2)
 
     total_loss = 0.0
-    total_confidence_loss = 0.0
     total_localization_loss = 0.0
     total_classification_loss = 0.0
-    total_unmatched_classification =0.0
     total_unmatched_loss = 0.0
-    total_matched_loss = 0.0
     class_criterion = torch.nn.CrossEntropyLoss()
 
     matched_dets = set(pred_idx for _, pred_idx in matches)
@@ -154,21 +151,20 @@ def custom_loss_function(epoch, det_preds, conf_preds, boxes, labels, class_pred
         localization_loss = 1 - iou
         total_localization_loss += localization_loss
 
-    unmatched_penalty = 0.1
+    unmatched_penalty = 0.05
     for det_idx in unmatched_dets:
       pred_box = det_preds[det_idx]
       pred_class = class_preds[det_idx]
+      class_label = torch.tensor([5], device='cuda:0')
 
       nearest_distance = min(box_center_distance(pred_box, gt_box) for gt_box in boxes)
-      class_label = torch.tensor([5], device='cuda:0')
       # Calculate distance-based penalty, scaled by confidence
       distance_penalty = nearest_distance * unmatched_penalty
-
-      unmatched_classification = class_criterion(pred_class.unsqueeze(0), class_label)
-      total_unmatched_classification += unmatched_classification
-      
       total_unmatched_loss += distance_penalty
 
-    total_loss = (total_unmatched_loss+total_unmatched_classification+total_localization_loss+total_classification_loss) / (len(matches) + len(unmatched_dets)) if matches else total_unmatched_loss*3
+      classification_loss = class_criterion(pred_class.unsqueeze(0), class_label)
+      total_classification_loss += classification_loss
 
-    return total_loss, total_unmatched_loss, total_localization_loss, total_classification_loss, matches
+    total_loss = (total_unmatched_loss+total_localization_loss+0.05*total_classification_loss) if matches else total_unmatched_loss*3
+
+    return total_loss, total_unmatched_loss, total_localization_loss, 0.05*total_classification_loss, matches
