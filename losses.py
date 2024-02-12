@@ -79,63 +79,17 @@ def box_center_distance(box1, box2):
     return torch.sqrt((box1[0] - box2[0])**2 + (box1[1] - box2[1])**2)
 
 
-def custom_loss_function(epoch, det_preds, conf_preds, boxes, labels, class_preds, new_w, new_h):
-    """
-    Calculate the custom loss for an object detection model.
-
-    This function computes a composite loss that includes confidence loss, 
-    localization loss, classification loss, and a penalty for unmatched detections.
-    Localization loss is applied only to detections with confidence above a 
-    specified threshold, aligning this approach closer to Faster R-CNN's methodology.
-
-    Parameters:
-    - det_preds (Tensor): The predicted bounding boxes of shape (N, 4), where N is 
-                          the number of detections, and each bounding box is 
-                          represented as (x1, y1, x2, y2).
-    - conf_preds (Tensor): The confidence scores for each predicted bounding box, 
-                           of shape (N,).
-    - boxes (Tensor): The ground truth bounding boxes of shape (M, 4), where M is 
-                      the number of ground truth objects.
-    - labels (Tensor): The ground truth labels for each object, of shape (M,).
-    - class_preds (Tensor): The class predictions for each detected bounding box, 
-                            of shape (N, num_classes).
-    - new_w (int/float): The width scaling factor for coordinate normalization.
-    - new_h (int/float): The height scaling factor for coordinate normalization.
-
-    Returns:
-    - total_loss (Tensor): The computed total loss as a scalar tensor.
-    - matches (list of tuples): List of matched ground truth and prediction 
-                                indices as (ground_truth_idx, prediction_idx).
-
-    The loss computation involves the following steps:
-    - Matching predicted and ground truth boxes using the Hungarian algorithm.
-    - Computing the confidence loss using binary cross-entropy.
-    - Computing the localization loss (1 - IoU) only for predictions with 
-      confidence above a threshold (0.5 by default).
-    - Computing the classification loss using cross-entropy.
-    - Adding a penalty for each unmatched detection.
-
-    Note:
-    - The function assumes that the bounding box coordinates are normalized 
-      using the provided scaling factors (new_w, new_h).
-    - The IoU threshold for determining positive matches is set to 0.4.
-    - The unmatched penalty is set to 2.5.
-    - The loss components are normalized by the total number of matches and 
-      unmatched detections.
-    """
-    if epoch <=10:
-      iou_threshold = 0.2  # IoU threshold
-    else:
-      iou_threshold = 0.4
-
-    confidence_threshold = 0.2  # Confidence threshold for applying regression loss
+def custom_loss_function(det_preds, conf_preds, boxes, labels, class_preds, new_w, new_h):
+    
+    iou_threshold = 0.4  # IoU threshold
+    confidence_threshold = 0.4  # Confidence threshold for applying regression loss
     matches, _ = hungarian_matching(boxes, det_preds, new_w, new_h)
 
     total_loss = 0.0
     total_confidence_loss = 0.0
     total_localization_loss = 0.0
     total_classification_loss = 0.0
-    total_unmatched_loss = 0.0
+    unmatched_loss = 0.0
 
     matched_dets = set(pred_idx for _, pred_idx in matches)
     all_dets = set(range(len(det_preds)))
@@ -150,14 +104,10 @@ def custom_loss_function(epoch, det_preds, conf_preds, boxes, labels, class_pred
 
         iou = fov_iou(pred_box, gt_box)
         target_confidence = torch.tensor([1.0 if iou > iou_threshold else 0], dtype=torch.float, device=pred_confidence.device)
-        
         confidence_loss = F.binary_cross_entropy(pred_confidence, target_confidence)
         total_confidence_loss += confidence_loss
 
         class_criterion = torch.nn.CrossEntropyLoss()
-        #class_label = class_label.to(torch.float)
-
-        #print(pred_class.unsqueeze(0), class_label.unsqueeze(0))
         classification_loss = class_criterion(pred_class.unsqueeze(0), class_label.unsqueeze(0))
         total_classification_loss += classification_loss
 
@@ -167,16 +117,11 @@ def custom_loss_function(epoch, det_preds, conf_preds, boxes, labels, class_pred
             total_localization_loss += localization_loss
 
     # Penalty for each unmatched detection
-    unmatched_penalty = 1
+    unmatched_penalty = 0.5
     for det_idx in unmatched_dets:
-      pred_box = det_preds[det_idx]
-      pred_confidence = conf_preds[det_idx].item()
-      # Find nearest ground truth box
-      nearest_distance = min(box_center_distance(pred_box, gt_box) for gt_box in boxes)
-      # Calculate distance-based penalty, scaled by confidence
-      distance_penalty = nearest_distance * pred_confidence * unmatched_penalty
-      total_unmatched_loss += distance_penalty
+        unmatched_confidence = conf_preds[det_idx].view(-1)
+        unmatched_loss += F.binary_cross_entropy(unmatched_confidence, torch.tensor([0.0], dtype=torch.float, device=unmatched_confidence.device))
 
-    total_loss = (0.4*total_confidence_loss + 0.5*total_localization_loss + 0.1*total_classification_loss + total_unmatched_loss) / (len(matches) + len(unmatched_dets)) if matches else total_unmatched_loss*3
+    total_loss = (total_confidence_loss + total_localization_loss + 0.1*total_classification_loss + unmatched_penalty * unmatched_loss) / (len(matches) + len(unmatched_dets)) if matches else unmatched_penalty * unmatched_loss * 5
 
-    return total_loss, total_unmatched_loss, 0.5*total_localization_loss, 0.1*total_classification_loss, 0.4*total_confidence_loss, matches
+    return total_loss, total_localization_loss, total_classification_loss, total_confidence_loss, matches
