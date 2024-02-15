@@ -36,7 +36,7 @@ def init_weights(m):
     - If the layer has a bias term, it will be initialized to zero.
     """
     if isinstance(m, nn.Linear):
-        nn.init.uniform_(m.weight, -15, 15)
+        nn.init.uniform_(m.weight, -1, 1)
         if m.bias is not None:
             nn.init.constant_(m.bias, 0)
 
@@ -101,7 +101,7 @@ def train_one_epoch(epoch, train_loader, model, optimizer, device, new_w, new_h,
         #compute batch loss and save images
         batch_loss, batch_unmatched_loss, batch_localization_loss, batch_classifcation_loss, batch_confidence_loss  = get_batch_loss(processed_batches, device, new_w, new_h, epoch, i, images, selected_batches, save_dir)
         batch_loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        #torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
 
         total_loss += batch_loss.item()
@@ -138,6 +138,9 @@ def validate_one_epoch(epoch, val_loader, model, device, new_w, new_h, num_class
     with torch.no_grad():
         for i, (images, boxes_list, labels_list) in enumerate(val_loader):
             images = images.to(device)
+
+            #print(images)
+
             detection_preds, classification_preds, confidence_preds = model(images)
 
             processed_batches = process_batches(

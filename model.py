@@ -155,7 +155,7 @@ class SimpleObjectDetector(nn.Module):
 
         detection_output = self.det_head(x).view(-1, self.num_boxes, 4)
         # Reshape cls_head output: infer batch size (-1), set dimensions to [num_boxes, num_classes].
-        classification_output = (self.cls_head(x).view(-1, self.num_boxes, self.num_classes))
+        classification_output = torch.sigmoid(self.cls_head(x).view(-1, self.num_boxes, self.num_classes))
         confidence_output = torch.sigmoid(self.conf_head(x)).view(-1, self.num_boxes, 1)
 
         # Apply the required transformations to the detection_output

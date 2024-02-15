@@ -79,9 +79,9 @@ def box_center_distance(box1, box2):
     return torch.sqrt((box1[0] - box2[0])**2 + (box1[1] - box2[1])**2)
 
 
-def custom_loss_function(det_preds, conf_preds, boxes, labels, class_preds, new_w, new_h):
+def custom_loss_function(epoch, det_preds, conf_preds, boxes, labels, class_preds, new_w, new_h):
     
-    iou_threshold = 0.4  # IoU threshold
+    iou_threshold = 0.2  # IoU threshold
     confidence_threshold = 0.4  # Confidence threshold for applying regression loss
     matches, _ = hungarian_matching(boxes, det_preds, new_w, new_h)
 
@@ -117,11 +117,11 @@ def custom_loss_function(det_preds, conf_preds, boxes, labels, class_preds, new_
             total_localization_loss += localization_loss
 
     # Penalty for each unmatched detection
-    unmatched_penalty = 0.5
-    for det_idx in unmatched_dets:
-        unmatched_confidence = conf_preds[det_idx].view(-1)
-        unmatched_loss += F.binary_cross_entropy(unmatched_confidence, torch.tensor([0.0], dtype=torch.float, device=unmatched_confidence.device))
+    #unmatched_penalty = 0.5
+    #for det_idx in unmatched_dets:
+    #    unmatched_confidence = conf_preds[det_idx].view(-1)
+    #    unmatched_loss += F.binary_cross_entropy(unmatched_confidence, torch.tensor([0.0], dtype=torch.float, device=unmatched_confidence.device))
 
-    total_loss = (total_confidence_loss + total_localization_loss + 0.1*total_classification_loss + unmatched_penalty * unmatched_loss) / (len(matches) + len(unmatched_dets)) if matches else unmatched_penalty * unmatched_loss * 5
+    total_loss = (total_confidence_loss + total_localization_loss)# + 0.1*total_classification_loss) #/ (len(matches) + len(unmatched_dets)) if matches else unmatched_penalty * unmatched_loss * 5
 
-    return total_loss, total_localization_loss, total_classification_loss, total_confidence_loss, matches
+    return total_loss, unmatched_loss, total_localization_loss, 0.1*total_classification_loss, total_confidence_loss, matches
